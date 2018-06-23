@@ -62,6 +62,7 @@ def main(argv):
             data, vocabulary = prepare_test_data(config)
             model = CaptionGenerator(config)
             model.load(sess, FLAGS.model_file)
+
             tf.get_default_graph().finalize()
             model.test(sess, data, vocabulary)
 

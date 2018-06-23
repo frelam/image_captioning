@@ -4,6 +4,10 @@ import numpy as np
 from base_model import BaseModel
 
 class CaptionGenerator(BaseModel):
+    def __init__(self):
+        self.num_ctx = 196
+        self.dim_ctx = 512
+
     def build(self):
         """ Build the model. """
         self.build_cnn()
@@ -21,13 +25,10 @@ class CaptionGenerator(BaseModel):
             self.build_resnet50()
         print("CNN built.")
 
-    def build_vgg16(self):
+    def build_vgg16(self,images):
         """ Build the VGG16 net. """
         config = self.config
 
-        images = tf.placeholder(
-            dtype = tf.float32,
-            shape = [config.batch_size] + self.image_shape)
 
         conv1_1_feats = self.nn.conv2d(images, 64, name = 'conv1_1')
         conv1_2_feats = self.nn.conv2d(conv1_1_feats, 64, name = 'conv1_2')
@@ -54,138 +55,49 @@ class CaptionGenerator(BaseModel):
         reshaped_conv5_3_feats = tf.reshape(conv5_3_feats,
                                             [config.batch_size, 196, 512])
 
-        self.conv_feats = reshaped_conv5_3_feats
-        self.num_ctx = 196
-        self.dim_ctx = 512
-        self.images = images
+        return conv5_3_feats, reshaped_conv5_3_feats
 
-    def build_resnet50(self):
-        """ Build the ResNet50. """
+        # self.images = images
+
+    def images_feat_generator(self):
         config = self.config
-
         images = tf.placeholder(
+            dtype=tf.float32,
+            shape=[config.batch_size]*5 + self.image_shape)
+
+        conv5_3_feats,reshaped_conv5_3_feats = self.build_vgg16(images)
+        conv5_3_feats = tf.reshape(conv5_3_feats, [config.batch_size/5,  16, 16, -1])
+        reshaped_conv5_3_feats = tf.reshape(reshaped_conv5_3_feats, [config.batch_size, -1, 196, 512])
+        images_global_feats = self.combine_net(conv5_3_feats)
+
+        for i in range(config.images_num):
+            global_feats = tf.concat([global_feats, images_global_feats], 1)
+
+        global_feats = tf.reshape(global_feats,[config.batch_size, 512])
+        self.global_feats = global_feats
+        self.conv_feats = reshaped_conv5_3_feats
+
+    def combine_net(self,images_feat):
+        """build the combine net"""
+        config = self.config
+        '''
+        image_feat = tf.placeholder(
             dtype = tf.float32,
-            shape = [config.batch_size] + self.image_shape)
+            shape = [config.batch_size] + 16 + 16 + config.image_nums * config.images_num)
+        '''
+        conv1_1_feats = self.nn.conv2d(images_feat, 2048, name='conv1_1')
+        conv1_2_feats = self.nn.conv2d(conv1_1_feats, 2048, name='conv1_2')
+        pool1_feats = self.nn.max_pool2d(conv1_2_feats, name='pool1')
 
-        conv1_feats = self.nn.conv2d(images,
-                                  filters = 64,
-                                  kernel_size = (7, 7),
-                                  strides = (2, 2),
-                                  activation = None,
-                                  name = 'conv1')
-        conv1_feats = self.nn.batch_norm(conv1_feats, 'bn_conv1')
-        conv1_feats = tf.nn.relu(conv1_feats)
-        pool1_feats = self.nn.max_pool2d(conv1_feats,
-                                      pool_size = (3, 3),
-                                      strides = (2, 2),
-                                      name = 'pool1')
+        conv2_1_feats = self.nn.conv2d(pool1_feats, 1024, name='conv2_1')
+        conv2_2_feats = self.nn.conv2d(conv2_1_feats, 1024, name='conv2_2')
+        pool2_feats = self.nn.max_pool2d(conv2_2_feats, name='pool2')
 
-        res2a_feats = self.resnet_block(pool1_feats, 'res2a', 'bn2a', 64, 1)
-        res2b_feats = self.resnet_block2(res2a_feats, 'res2b', 'bn2b', 64)
-        res2c_feats = self.resnet_block2(res2b_feats, 'res2c', 'bn2c', 64)
+        fc1 = self.nn.dense(pool2_feats,units= config.combine_fc1,activation= None,name= 'fc_combine_image')
+        fc2 = self.nn.dense(fc1,units= config.combine_fc2,activation= None,name= 'fc_combine_image')
 
-        res3a_feats = self.resnet_block(res2c_feats, 'res3a', 'bn3a', 128)
-        res3b_feats = self.resnet_block2(res3a_feats, 'res3b', 'bn3b', 128)
-        res3c_feats = self.resnet_block2(res3b_feats, 'res3c', 'bn3c', 128)
-        res3d_feats = self.resnet_block2(res3c_feats, 'res3d', 'bn3d', 128)
+        return fc2
 
-        res4a_feats = self.resnet_block(res3d_feats, 'res4a', 'bn4a', 256)
-        res4b_feats = self.resnet_block2(res4a_feats, 'res4b', 'bn4b', 256)
-        res4c_feats = self.resnet_block2(res4b_feats, 'res4c', 'bn4c', 256)
-        res4d_feats = self.resnet_block2(res4c_feats, 'res4d', 'bn4d', 256)
-        res4e_feats = self.resnet_block2(res4d_feats, 'res4e', 'bn4e', 256)
-        res4f_feats = self.resnet_block2(res4e_feats, 'res4f', 'bn4f', 256)
-
-        res5a_feats = self.resnet_block(res4f_feats, 'res5a', 'bn5a', 512)
-        res5b_feats = self.resnet_block2(res5a_feats, 'res5b', 'bn5b', 512)
-        res5c_feats = self.resnet_block2(res5b_feats, 'res5c', 'bn5c', 512)
-
-        reshaped_res5c_feats = tf.reshape(res5c_feats,
-                                         [config.batch_size, 49, 2048])
-
-        self.conv_feats = reshaped_res5c_feats
-        self.num_ctx = 49
-        self.dim_ctx = 2048
-        self.images = images
-
-    def resnet_block(self, inputs, name1, name2, c, s=2):
-        """ A basic block of ResNet. """
-        branch1_feats = self.nn.conv2d(inputs,
-                                    filters = 4*c,
-                                    kernel_size = (1, 1),
-                                    strides = (s, s),
-                                    activation = None,
-                                    use_bias = False,
-                                    name = name1+'_branch1')
-        branch1_feats = self.nn.batch_norm(branch1_feats, name2+'_branch1')
-
-        branch2a_feats = self.nn.conv2d(inputs,
-                                     filters = c,
-                                     kernel_size = (1, 1),
-                                     strides = (s, s),
-                                     activation = None,
-                                     use_bias = False,
-                                     name = name1+'_branch2a')
-        branch2a_feats = self.nn.batch_norm(branch2a_feats, name2+'_branch2a')
-        branch2a_feats = tf.nn.relu(branch2a_feats)
-
-        branch2b_feats = self.nn.conv2d(branch2a_feats,
-                                     filters = c,
-                                     kernel_size = (3, 3),
-                                     strides = (1, 1),
-                                     activation = None,
-                                     use_bias = False,
-                                     name = name1+'_branch2b')
-        branch2b_feats = self.nn.batch_norm(branch2b_feats, name2+'_branch2b')
-        branch2b_feats = tf.nn.relu(branch2b_feats)
-
-        branch2c_feats = self.nn.conv2d(branch2b_feats,
-                                     filters = 4*c,
-                                     kernel_size = (1, 1),
-                                     strides = (1, 1),
-                                     activation = None,
-                                     use_bias = False,
-                                     name = name1+'_branch2c')
-        branch2c_feats = self.nn.batch_norm(branch2c_feats, name2+'_branch2c')
-
-        outputs = branch1_feats + branch2c_feats
-        outputs = tf.nn.relu(outputs)
-        return outputs
-
-    def resnet_block2(self, inputs, name1, name2, c):
-        """ Another basic block of ResNet. """
-        branch2a_feats = self.nn.conv2d(inputs,
-                                     filters = c,
-                                     kernel_size = (1, 1),
-                                     strides = (1, 1),
-                                     activation = None,
-                                     use_bias = False,
-                                     name = name1+'_branch2a')
-        branch2a_feats = self.nn.batch_norm(branch2a_feats, name2+'_branch2a')
-        branch2a_feats = tf.nn.relu(branch2a_feats)
-
-        branch2b_feats = self.nn.conv2d(branch2a_feats,
-                                     filters = c,
-                                     kernel_size = (3, 3),
-                                     strides = (1, 1),
-                                     activation = None,
-                                     use_bias = False,
-                                     name = name1+'_branch2b')
-        branch2b_feats = self.nn.batch_norm(branch2b_feats, name2+'_branch2b')
-        branch2b_feats = tf.nn.relu(branch2b_feats)
-
-        branch2c_feats = self.nn.conv2d(branch2b_feats,
-                                     filters = 4*c,
-                                     kernel_size = (1, 1),
-                                     strides = (1, 1),
-                                     activation = None,
-                                     use_bias = False,
-                                     name = name1+'_branch2c')
-        branch2c_feats = self.nn.batch_norm(branch2c_feats, name2+'_branch2c')
-
-        outputs = inputs + branch2c_feats
-        outputs = tf.nn.relu(outputs)
-        return outputs
 
     def build_rnn(self):
         """ Build the RNN. """
@@ -236,9 +148,11 @@ class CaptionGenerator(BaseModel):
                 state_keep_prob = 1.0-config.lstm_drop_rate)
 
         # Initialize the LSTM using the mean context
+
         with tf.variable_scope("initialize"):
-            context_mean = tf.reduce_mean(self.conv_feats, axis = 1)
-            initial_memory, initial_output = self.initialize(context_mean)
+            #context_mean = tf.reduce_mean(self.conv_feats, axis = 1)
+            initial_memory = self.global_feats
+            initial_output = self.global_feats
             initial_state = initial_memory, initial_output
 
         # Prepare to run
@@ -354,7 +268,7 @@ class CaptionGenerator(BaseModel):
             self.probs = probs
 
         print("RNN built.")
-
+    '''
     def initialize(self, context_mean):
         """ Initialize the LSTM using the mean context. """
         config = self.config
@@ -391,7 +305,7 @@ class CaptionGenerator(BaseModel):
                                    activation = None,
                                    name = 'fc_b2')
         return memory, output
-
+    '''
     def attend(self, contexts, output):
         """ Attention Mechanism. """
         config = self.config

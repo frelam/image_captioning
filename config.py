@@ -50,13 +50,13 @@ class Config(object):
         self.vocabulary_size = 5000
 
         # about the training
-        self.train_image_dir = './train/images/'
+        self.train_image_dir = '/for_home/coco/train2014'
         self.train_caption_file = './train/captions_train2014.json'
         self.temp_annotation_file = './train/anns.csv'
         self.temp_data_file = './train/data.npy'
 
         # about the evaluation
-        self.eval_image_dir = './val/images/'
+        self.eval_image_dir = '/for_home/coco/val2014'
         self.eval_caption_file = './val/captions_val2014.json'
         self.eval_result_dir = './val/results/'
         self.eval_result_file = './val/results.json'
@@ -66,3 +66,8 @@ class Config(object):
         self.test_image_dir = './test/images/'
         self.test_result_dir = './test/results/'
         self.test_result_file = './test/results.csv'
+
+        #mutil_images
+        self.images_nums = 5
+        self.combine_fc1 = 1024
+        self.combine_fc2 = 512
