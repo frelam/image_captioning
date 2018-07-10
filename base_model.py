@@ -10,11 +10,11 @@ import matplotlib.pyplot as plt
 import pickle
 import copy
 import json
-from tqdm import tqdm
+#from tqdm import tqdm
 
 from utils.nn import NN
-from utils.coco.coco import COCO
-from utils.coco.pycocoevalcap.eval import COCOEvalCap
+#from utils.coco.coco import COCO
+#from utils.coco.pycocoevalcap.eval import COCOEvalCap
 from utils.misc import ImageLoader, CaptionData, TopN
 
 class BaseModel(object):
@@ -43,11 +43,11 @@ class BaseModel(object):
         train_writer = tf.summary.FileWriter(config.summary_dir,
                                              sess.graph)
 
-        for _ in tqdm(list(range(config.num_epochs)), desc='epoch'):
-            for _ in tqdm(list(range(train_data.num_batches)), desc='batch'):
-                batch = train_data.next_batch()
-                image_files, sentences, masks = batch
-                images = self.image_loader.load_images(image_files)
+        for _ in range(config.num_epochs):
+            for _ in range(train_data.num_batches):
+                batch = train_data.next_batch()  ######
+                image_files, sentences, masks = batch ############
+                images = self.image_loader.load_images(image_files)   ###########
                 feed_dict = {self.images: images,
                              self.sentences: sentences,
                              self.masks: masks}
@@ -58,12 +58,11 @@ class BaseModel(object):
                 if (global_step + 1) % config.save_period == 0:
                     self.save()
                 train_writer.add_summary(summary, global_step)
-            train_data.reset()
-
+                train_writer.close()
         self.save()
         train_writer.close()
         print("Training complete.")
-
+    '''
     def eval(self, sess, eval_gt_coco, eval_data, vocabulary):
         """ Evaluate the model using the COCO val2014 data. """
         print("Evaluating the model ...")
@@ -76,7 +75,7 @@ class BaseModel(object):
 
         # Generate the captions for the images
         idx = 0
-        for k in tqdm(list(range(eval_data.num_batches)), desc='batch'):
+        for k in list(range(eval_data.num_batches), desc='batch'):
             batch = eval_data.next_batch()
             caption_data = self.beam_search(sess, batch, vocabulary)
 
@@ -155,7 +154,7 @@ class BaseModel(object):
                                 'prob':scores})
         results.to_csv(config.test_result_file)
         print("Testing complete.")
-
+    '''
     def beam_search(self, sess, image_files, vocabulary):
         """Use beam search to generate the captions for a batch of images."""
         # Feed in the images to get the contexts and the initial LSTM states
@@ -267,7 +266,7 @@ class BaseModel(object):
         print("Loading the model from %s..." %save_path)
         data_dict = np.load(save_path, encoding='latin1').item()
         count = 0
-        for v in tqdm(tf.global_variables()):
+        for v in tf.global_variables():
             if v.name in data_dict.keys():
                 sess.run(v.assign(data_dict[v.name]))
                 count += 1
@@ -281,7 +280,7 @@ class BaseModel(object):
         data_path = data_path.strip()
         data_dict = np.load(os.getcwd() + '/' + data_path, encoding='latin1').item()
         count = 0
-        for op_name in tqdm(data_dict):
+        for op_name in data_dict:
             with tf.variable_scope(op_name, reuse = True):
                 for param_name, data in data_dict[op_name].items():
                     try:

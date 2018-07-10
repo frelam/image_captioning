@@ -307,13 +307,13 @@ class COCO:
         keep_ann = {}
         keep_img = {}
         for ann in tqdm(self.dataset['annotations']):
-            if len(word_tokenize(ann['caption']))<=max_cap_len:
-                keep_ann[ann['id']] = keep_ann.get(ann['id'], 0) + 1
-                keep_img[ann['image_id']] = keep_img.get(ann['image_id'], 0) + 1
+            if len(word_tokenize(ann[0]['text']))<=max_cap_len:
+                keep_ann[ann[0]['story_id']] = keep_ann.get(ann['story_id'], 0) + 1
+                keep_img[ann['photo_flickr_id']] = keep_img.get(ann['photo_flickr_id'], 0) + 1
 
         self.dataset['annotations'] = \
             [ann for ann in self.dataset['annotations'] \
-            if keep_ann.get(ann['id'],0)>0]
+            if keep_ann.get(ann[0]['story_id'],0)>0]
         self.dataset['images'] = \
             [img for img in self.dataset['images'] \
             if keep_img.get(img['id'],0)>0]
@@ -326,16 +326,16 @@ class COCO:
         keep_img = {}
         for ann in tqdm(self.dataset['annotations']):
             keep_ann[ann['id']] = 1
-            words_in_ann = word_tokenize(ann['caption'])
+            words_in_ann = word_tokenize(ann[0]['text'])
             for word in words_in_ann:
                 if word not in vocab:
-                    keep_ann[ann['id']] = 0
+                    keep_ann[ann[0]['text']] = 0
                     break
-            keep_img[ann['image_id']] = keep_img.get(ann['image_id'], 0) + 1
+            keep_img[ann[0]['photo_flickr_id']] = keep_img.get(ann[0]['photo_flickr_id'], 0) + 1
 
         self.dataset['annotations'] = \
             [ann for ann in self.dataset['annotations'] \
-            if keep_ann.get(ann['id'],0)>0]
+            if keep_ann.get(ann[0]['story_id'],0)>0]
         self.dataset['images'] = \
             [img for img in self.dataset['images'] \
             if keep_img.get(img['id'],0)>0]

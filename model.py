@@ -1,17 +1,16 @@
 import tensorflow as tf
 import numpy as np
-
+#import keras as k
 from base_model import BaseModel
 
 class CaptionGenerator(BaseModel):
-    def __init__(self):
+    def build(self):
         self.num_ctx = 196
         self.dim_ctx = 512
-
-    def build(self):
         """ Build the model. """
         self.build_cnn()
         self.build_rnn()
+
         if self.is_train:
             self.build_optimizer()
             self.build_summary()
@@ -20,7 +19,7 @@ class CaptionGenerator(BaseModel):
         """ Build the CNN. """
         print("Building the CNN...")
         if self.config.cnn == 'vgg16':
-            self.build_vgg16()
+            self.images_feat_generator()
         else:
             self.build_resnet50()
         print("CNN built.")
@@ -63,19 +62,21 @@ class CaptionGenerator(BaseModel):
         config = self.config
         images = tf.placeholder(
             dtype=tf.float32,
-            shape=[config.batch_size]*5 + self.image_shape)
+            shape=[config.batch_size] + [224,224,3])
 
         conv5_3_feats,reshaped_conv5_3_feats = self.build_vgg16(images)
-        conv5_3_feats = tf.reshape(conv5_3_feats, [config.batch_size/5,  16, 16, -1])
-        reshaped_conv5_3_feats = tf.reshape(reshaped_conv5_3_feats, [config.batch_size, -1, 196, 512])
+        conv5_3_feats = tf.reshape(conv5_3_feats, [int(config.batch_size/5),  14, 14, -1])
+        #reshaped_conv5_3_feats = tf.reshape(reshaped_conv5_3_feats, [config.batch_size, -1, 196, 512])
         images_global_feats = self.combine_net(conv5_3_feats)
 
-        for i in range(config.images_num):
+        global_feats = images_global_feats
+        for i in range(config.images_nums -1 ):
             global_feats = tf.concat([global_feats, images_global_feats], 1)
 
         global_feats = tf.reshape(global_feats,[config.batch_size, 512])
         self.global_feats = global_feats
         self.conv_feats = reshaped_conv5_3_feats
+        self.images = images
 
     def combine_net(self,images_feat):
         """build the combine net"""
@@ -85,16 +86,40 @@ class CaptionGenerator(BaseModel):
             dtype = tf.float32,
             shape = [config.batch_size] + 16 + 16 + config.image_nums * config.images_num)
         '''
-        conv1_1_feats = self.nn.conv2d(images_feat, 2048, name='conv1_1')
-        conv1_2_feats = self.nn.conv2d(conv1_1_feats, 2048, name='conv1_2')
-        pool1_feats = self.nn.max_pool2d(conv1_2_feats, name='pool1')
 
-        conv2_1_feats = self.nn.conv2d(pool1_feats, 1024, name='conv2_1')
-        conv2_2_feats = self.nn.conv2d(conv2_1_feats, 1024, name='conv2_2')
-        pool2_feats = self.nn.max_pool2d(conv2_2_feats, name='pool2')
+        conv1_1_feats = self.nn.conv2d(images_feat, 2048, name='combine_conv1_1',use_bias= False,activation = None)
+        conv1_1_feats = self.nn.batch_norm(conv1_1_feats,name = 'combine_conv1_1_bn')
+        conv1_1_feats = tf.nn.relu(conv1_1_feats)
 
-        fc1 = self.nn.dense(pool2_feats,units= config.combine_fc1,activation= None,name= 'fc_combine_image')
-        fc2 = self.nn.dense(fc1,units= config.combine_fc2,activation= None,name= 'fc_combine_image')
+        conv1_2_feats = self.nn.conv2d(conv1_1_feats, 2048, name='combine_conv1_2',use_bias=False,activation = None )
+        conv1_2_feats = self.nn.batch_norm(conv1_2_feats,name = 'combine_conv1_2_bn')
+        conv1_2_feats = tf.nn.relu(conv1_2_feats)
+
+        pool1_feats = self.nn.max_pool2d(conv1_2_feats, name='combine_pool1')
+
+        conv2_1_feats = self.nn.conv2d(pool1_feats, 1024, name='combine_conv2_1', use_bias=False,activation = None)
+        conv2_1_feats = self.nn.batch_norm(conv2_1_feats, name='combine_conv2_1_bn')
+        conv2_1_feats = tf.nn.relu(conv2_1_feats)
+
+        conv2_2_feats = self.nn.conv2d(conv2_1_feats, 1024, name='combine_conv2_2', use_bias=False,activation = None)
+        conv2_2_feats = self.nn.batch_norm(conv2_2_feats, name='combine_conv2_2_bn')
+        conv2_2_feats = tf.nn.relu(conv2_2_feats)
+
+        pool2_feats = self.nn.max_pool2d(conv2_2_feats, name='combine_pool2')
+        '''
+        conv1_1_feats = self.nn.conv2d(images_feat, 2048, name='combine_conv1_1', strides = (2, 2),use_bias=False, activation=None)
+        conv1_1_feats = self.nn.batch_norm(conv1_1_feats, name='combine_conv1_1_bn')
+        conv1_1_feats = tf.nn.relu(conv1_1_feats)
+
+        conv1_2_feats = self.nn.conv2d(conv1_1_feats, 2048, name='combine_conv1_2', strides = (2, 2),use_bias=False, activation=None)
+        conv1_2_feats = self.nn.batch_norm(conv1_2_feats, name='combine_conv1_2_bn')
+        conv1_2_feats = tf.nn.relu(conv1_2_feats)
+'''
+        flatten = tf.layers.flatten(pool2_feats)
+        fc1 = self.nn.dense(flatten,units= config.combine_fc1 ,use_bias = True,name= 'fc1_combine_image')
+        fc1 = self.nn.dropout(fc1,name='fc1_combine_image')
+        fc2 = self.nn.dense(fc1,units= config.combine_fc2,use_bias=True,activation= None ,name= 'fc2_combine_image')
+
 
         return fc2
 
@@ -150,10 +175,10 @@ class CaptionGenerator(BaseModel):
         # Initialize the LSTM using the mean context
 
         with tf.variable_scope("initialize"):
-            #context_mean = tf.reduce_mean(self.conv_feats, axis = 1)
+            context_mean = tf.reduce_mean(self.conv_feats, axis = 1)
             initial_memory = self.global_feats
-            initial_output = self.global_feats
-            initial_state = initial_memory, initial_output
+            initial_output = self.initialize(context_mean)
+            #initial_state = initial_memory, initial_output
 
         # Prepare to run
         predictions = []
@@ -268,33 +293,18 @@ class CaptionGenerator(BaseModel):
             self.probs = probs
 
         print("RNN built.")
-    '''
+
     def initialize(self, context_mean):
         """ Initialize the LSTM using the mean context. """
         config = self.config
         context_mean = self.nn.dropout(context_mean)
         if config.num_initalize_layers == 1:
             # use 1 fc layer to initialize
-            memory = self.nn.dense(context_mean,
-                                   units = config.num_lstm_units,
-                                   activation = None,
-                                   name = 'fc_a')
             output = self.nn.dense(context_mean,
                                    units = config.num_lstm_units,
                                    activation = None,
                                    name = 'fc_b')
         else:
-            # use 2 fc layers to initialize
-            temp1 = self.nn.dense(context_mean,
-                                  units = config.dim_initalize_layer,
-                                  activation = tf.tanh,
-                                  name = 'fc_a1')
-            temp1 = self.nn.dropout(temp1)
-            memory = self.nn.dense(temp1,
-                                   units = config.num_lstm_units,
-                                   activation = None,
-                                   name = 'fc_a2')
-
             temp2 = self.nn.dense(context_mean,
                                   units = config.dim_initalize_layer,
                                   activation = tf.tanh,
@@ -304,8 +314,8 @@ class CaptionGenerator(BaseModel):
                                    units = config.num_lstm_units,
                                    activation = None,
                                    name = 'fc_b2')
-        return memory, output
-    '''
+        return output
+
     def attend(self, contexts, output):
         """ Attention Mechanism. """
         config = self.config

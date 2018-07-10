@@ -24,7 +24,7 @@ class ImageLoader(object):
         offset = offset.astype(np.int32)
         image = image[offset[0]:offset[0]+self.crop_shape[0],
                       offset[1]:offset[1]+self.crop_shape[1]]
-        image = image - self.mean
+        image = (image - self.mean)/255.0
         return image
 
     def load_images(self, image_files):

@@ -4,7 +4,7 @@ class Config(object):
     def __init__(self):
         # about the model architecture
         self.cnn = 'vgg16'               # 'vgg16' or 'resnet50'
-        self.max_caption_length = 20
+        self.max_caption_length = 30
         self.dim_embedding = 512
         self.num_lstm_units = 512
         self.num_initalize_layers = 2    # 1 or 2
@@ -26,9 +26,9 @@ class Config(object):
 
         # about the optimization
         self.num_epochs = 100
-        self.batch_size = 32
+        self.batch_size = 35
         self.optimizer = 'Adam'    # 'Adam', 'RMSProp', 'Momentum' or 'SGD'
-        self.initial_learning_rate = 0.0001
+        self.initial_learning_rate = 0.000001
         self.learning_rate_decay_factor = 1.0
         self.num_steps_per_decay = 100000
         self.clip_gradients = 5.0

@@ -3,8 +3,10 @@ import tensorflow as tf
 
 from config import Config
 from model import CaptionGenerator
-from dataset import prepare_train_data, prepare_eval_data, prepare_test_data
+from dataset import prepare_train_data#prepare_eval_data, prepare_test_data
 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 FLAGS = tf.app.flags.FLAGS
 
 tf.flags.DEFINE_string('phase', 'train',
@@ -17,7 +19,7 @@ tf.flags.DEFINE_boolean('load', False,
 tf.flags.DEFINE_string('model_file', None,
                        'If sepcified, load a pretrained model from this file')
 
-tf.flags.DEFINE_boolean('load_cnn', False,
+tf.flags.DEFINE_boolean('load_cnn', True,
                         'Turn on to load a pretrained CNN model')
 
 tf.flags.DEFINE_string('cnn_model_file', './vgg16_no_fc.npy',
@@ -35,8 +37,9 @@ def main(argv):
     config.phase = FLAGS.phase
     config.train_cnn = FLAGS.train_cnn
     config.beam_size = FLAGS.beam_size
-
-    with tf.Session() as sess:
+    config2 = tf.ConfigProto()
+    config2.gpu_options.allow_growth = True
+    with tf.Session(config=config2) as sess:
         if FLAGS.phase == 'train':
             # training phase
             data = prepare_train_data(config)
@@ -48,7 +51,7 @@ def main(argv):
                 model.load_cnn(sess, FLAGS.cnn_model_file)
             tf.get_default_graph().finalize()
             model.train(sess, data)
-
+        '''
         elif FLAGS.phase == 'eval':
             # evaluation phase
             coco, data, vocabulary = prepare_eval_data(config)
@@ -65,6 +68,7 @@ def main(argv):
 
             tf.get_default_graph().finalize()
             model.test(sess, data, vocabulary)
+            '''
 
 if __name__ == '__main__':
     tf.app.run()

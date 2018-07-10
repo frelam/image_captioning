@@ -4,7 +4,7 @@ import tensorflow.contrib.layers as layers
 class NN(object):
     def __init__(self, config):
         self.config = config
-        self.is_train = True if config.phase == 'train' else False
+        self.is_train = True #if config.phase == 'train' else False
         self.train_cnn = self.is_train and config.train_cnn
         self.prepare()
 
